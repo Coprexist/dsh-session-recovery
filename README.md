@@ -2,6 +2,8 @@
 
 ![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-dsh-4B32C3) ![Node](https://img.shields.io/badge/Node-24%2B-339933) ![License](https://img.shields.io/badge/License-MIT-blue)
 
+English | [中文](README.zh.md)
+
 > Recover deleted or corrupted DeepSeek Harness (dsh) sessions (`session.jsonl.zstd`) and memory (`memory.db`) straight from the raw disk — a battle-tested recovery manual plus reusable scripts.
 
 Recover dsh conversation logs and memory database after `rm -rf ~/.dsh` or file corruption, by scanning the raw block device for surviving data.
