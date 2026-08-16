@@ -60,8 +60,12 @@ The session log is a **concatenated stream of zstd frames — one frame per JSON
 
 ```
 ├── RECOVERY.md            # Full recovery manual (Chinese, battle-tested)
+├── docs/
+│   ├── awesome-entry.yml  # Ready-to-submit entry for the Awesome DSH Plugin list
+│   └── GITHUB-PUBLISH.md  # Publish & PR checklist
 ├── scripts/
 │   ├── scan-zstd.js       # Disk scan: find & cluster zstd session frames
+│   ├── split-sessions.js  # Split mixed recovered events into per-session files
 │   ├── rebuild-session.js # Rebuild official-format session.jsonl.zstd
 │   └── recover-memory.js  # Locate & rescue memory.db (SQLite .recover)
 └── package.json           # dsh plugin manifest (dsh.bundle)

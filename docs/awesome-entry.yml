@@ -1,0 +1,6 @@
+url: https://github.com/Coprexist/dsh-session-recovery
+name: Coprexist/dsh-session-recovery
+category: sessions
+description:
+  en: Recover deleted or corrupted dsh session logs (session.jsonl.zstd) and memory (memory.db) straight from the raw disk, with a battle-tested manual and rebuild scripts.
+  zh: 从原始磁盘直接恢复被删除或损坏的 dsh 会话记录（session.jsonl.zstd）与记忆库（memory.db），附实战验证手册与重建脚本。
