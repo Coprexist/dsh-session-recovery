@@ -1,0 +1,34 @@
+{
+  "name": "dsh-session-recovery",
+  "version": "0.1.0",
+  "description": "Recover deleted/corrupted dsh sessions (session.jsonl.zstd) and memory (memory.db) straight from the raw disk. Battle-tested recovery manual + scripts.",
+  "type": "module",
+  "bin": {
+    "dsh-session-recovery": "./scripts/scan-zstd.js"
+  },
+  "files": [
+    "scripts/",
+    "RECOVERY.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "session-recovery",
+    "data-recovery",
+    "zstd",
+    "sqlite",
+    "forensics"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "name": "dsh-session-recovery",
+      "description": "Recover dsh sessions and memory from raw disk after deletion or corruption.",
+      "version": "0.1.0"
+    }
+  }
+}

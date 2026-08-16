@@ -1,0 +1,6 @@
+node_modules/
+*.tar.gz
+*.db
+candidate-*.db
+memory-rebuilt.db
+/recovered/
