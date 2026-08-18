@@ -29,8 +29,8 @@ git push -u origin main
 
 ```powershell
 cd F:\Zhang\dsh-session-recovery
-# 提交前自查敏感信息（应无输出）
-git grep -n -E "密码|password|<你的密码>|101\.|<SSH端口>|@1[0-9]{2}\." HEAD 2>$null
+# 提交前自查敏感信息（应无输出）——把下面 <占位符> 换成你自己的真实值再跑
+git grep -n -E "密码|password|<你的密码>|<服务器IP>|:<SSH端口>|@1[0-9]{2}\." HEAD 2>$null
 
 git add -A
 git commit -m "描述改动"
