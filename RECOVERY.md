@@ -19,7 +19,8 @@ DeepSeek Harness 的数据（会话日志、记忆库、配置）默认存放在
 - [3. 恢复会话 session.jsonl.zstd（zstd 帧）](#3-恢复会话-sessionjsonlzstd-zstd-帧)
 - [4. 重建会话文件（官方格式）](#4-重建会话文件官方格式)
 - [5. 注册工作区与会话](#5-注册工作区与会话)
-- [6. 常见坑与校验规则](#6-常见坑与校验规则)
+- [6. 重建后的续接修复（续接/请求报错）](#6-重建后的续接修复续接请求报错)
+- [7. 常见坑与校验规则](#7-常见坑与校验规则)
 - [脚本说明](#脚本说明)
 - [License](#license)
 
@@ -139,7 +140,7 @@ node scripts/rebuild-session.js \
 1. **按 time 排序**（保持事件顺序）
 2. **seq 重编号为 0..N-1 连续**（满足 `seq === index`）
 3. **深度修复所有 `sourceEventSeqs`/`messageSeqs`**：只保留能映射到更早事件的引用，失效引用丢弃（被覆盖的事件已丢失，无法引用）
-4. **修复 `surfaceOp`**：对象形式统一改为字符串 `"append"`（正常事件的 surfaceOp 是字符串）
+4. **修复 `surfaceOp`**：对象形式统一改为字符串 `"append"`（正常事件的 surfaceOp 是字符串）——注意这是**有损**的：compaction 的 `replace` 语义被压平后，重建文件的续接可能报 tool 配对错误，见 [第 6 节](#6-重建后的续接修复续接请求报错) 用 `repair-session.js` 修复
 5. **逐行 zstd 压缩 + checksum**（官方格式）
 
 > 会话目录名必须与 header 里的 `id` 一致：`~/.dsh/sessions/<workspace-encoded>/<session-id>/session.jsonl.zstd`。
@@ -176,7 +177,49 @@ systemctl restart dsh-web
 
 ---
 
-## 6. 常见坑与校验规则
+## 6. 重建后的续接修复（续接/请求报错）
+
+重建文件能通过加载校验，但**续接会话**时可能暴露两类新问题（都是重建的副作用）：
+
+| 报错 | 根因 |
+|---|---|
+| `internal: resume failed ... invalid persisted inbox splice at session seq N` | `agent/inbox/spliced` 是**有状态投影**：每条 splice 按 `start`/`removedCount` 在 pending 列表上增删；恢复时丢过事件 → 投影状态错位 → 后序 splice 越界 |
+| `Messages with role 'tool' must be a response to a preceding message with 'tool_calls'` (INVALID_REQUEST) | compaction 会把旧 `tool/result` 用 `surfaceOp: {op:'replace'}` **原地重写**；重建把 replace 压平成 `"append"` 后，被替换的旧结果残留在 transcript 里 → 同一 `tool_call_id` 出现多条 tool 消息 → 模型 API 拒绝请求 |
+
+**修复：`scripts/repair-session.js`**（逐条重放 DSH 的 inbox 投影 / surface fold / wire 序列化规则，与真实续接完全一致）：
+
+```bash
+# 1. 先诊断（只分析，不写任何文件）
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd --dry-run
+
+# 2. 正式修复（生成 .repaired，并自动备份 .bak-<时间戳>）
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd
+
+# 3. 如果当初拆分的原始事件还在，加 --raw 做“忠实重建”，
+#    能保留 compaction 的 replace 语义（transcript 更干净、不膨胀）
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd \
+  --raw /tmp/sess-A.jsonl
+
+# 4. 确认无误后覆盖原文件并重启
+cp ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd.repaired \
+   ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd
+systemctl restart dsh-web
+```
+
+脚本自动完成三件事：
+
+1. **修复 inbox splice**：把越界/重复的 splice 改写为最接近的合法 splice（夹取 `start`/`removedCount`、丢弃重复 pending id）
+2. **清理 transcript 的 tool 配对**：同一 `tool_call_id` 保留最后一条结果（compaction 重写版）、丢弃孤儿 tool 结果；对没有结果的 assistant `tool_calls` 合成一条“工具被中断”错误结果（文案与 DSH 的 `interruptedTurnClosers` 一致）
+3. **重编号 + 重映射**：seq 重新连续，`sourceEventSeqs`/`messageSeqs` 与 replace 的 start/end 全部按新编号重映射；不满足 DSH 重写规则的 replace 降级为 `append`
+
+> 想离线验证脚本：`node scripts/make-test-fixture.js` 会生成两个带典型损伤的样本会话，跑完 repair 后再用 DSH 自身的 `foldSurface` 加载即知是否修好。
+
+---
+
+## 7. 常见坑与校验规则
 
 | 报错 | 原因 | 修法 |
 |---|---|---|
@@ -185,6 +228,8 @@ systemctl restart dsh-web
 | `sourceEventSeqs must reference earlier events: X >= current seq Y` | 引用了丢失/未来事件 | 深度遍历删除失效引用（脚本自动做） |
 | `surface replace: start seq X not found in surface` | `surfaceOp` 的 replace 引用了丢失事件 | 改成字符串 `"append"` |
 | `session event carries an invalid replace surfaceOp` | surfaceOp 写成对象 `{op:"append"}` | 改成字符串 `"append"` |
+| `invalid persisted inbox splice at session seq N` | 恢复时丢过 `agent/inbox/spliced`，投影状态错位 | `node scripts/repair-session.js <session.jsonl.zstd>` |
+| `Messages with role 'tool' must be a response to a preceding message with 'tool_calls'` | 重建把 replace 压平成 append，旧 tool/result 残留成重复 | `node scripts/repair-session.js <session.jsonl.zstd>`（最好带 `--raw` 忠实重建） |
 | `.credentials.yaml is readable beyond its owner` | Windows 拷贝过来权限变 666 | `chmod 600 ~/.dsh/.credentials.yaml` |
 | `listen EADDRINUSE` | systemd 自动重启 + 手动启动冲突 | 用 `systemctl restart dsh-web`，别 `pkill` |
 
@@ -202,8 +247,11 @@ cp -r ~/.dsh ~/.dsh.bak
 | 脚本 | 用途 |
 |---|---|
 | `scripts/scan-zstd.js` | 全盘扫描 zstd 帧，按磁盘偏移聚类，输出候选会话事件 JSONL |
+| `scripts/split-sessions.js` | 按 turn 重置 / 时间边界把混合事件拆成多个会话 |
 | `scripts/rebuild-session.js` | 重建官方格式会话文件（重编号 + 修引用 + 逐行 zstd） |
-| `scripts/recover-memory.sh` | 定位 + dump + 抢救 memory.db（SQLite .recover 流程） |
+| `scripts/repair-session.js` | 续接修复：inbox splice / tool 配对 / 合成缺失结果（`--raw` 忠实重建） |
+| `scripts/make-test-fixture.js` | 生成带典型损伤的样本会话，离线验证修复脚本 |
+| `scripts/recover-memory.js` | 定位 + dump + 抢救 memory.db（SQLite .recover 流程） |
 
 > 所有脚本只读块设备 / 写输出到指定目录，不修改原始磁盘。
 
