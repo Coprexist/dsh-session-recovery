@@ -24,6 +24,11 @@
  *                surviving event's sourceEventSeqs), shrinking the transcript
  *                back to the compacted view. Use when resume fails with
  *                "maximum context length exceeded".
+ *   --max-tokens <N>
+ *                fallback guard: after compaction, if the estimated transcript
+ *                still exceeds N tokens, trim the OLDEST messages until it
+ *                fits (the newest message is always kept). Guarantees a
+ *                resumed session can build a request.
  *
  * Output: <file>.repaired (new file) + <file>.bak-<ts> (backup of input).
  */
@@ -36,13 +41,14 @@ const RAW = opt('raw')
 const DRY = args.includes('--dry-run')
 const OUT = opt('out')
 const COMPACT = args.includes('--compact')
+const MAX_TOKENS = opt('max-tokens') === undefined ? undefined : Number(opt('max-tokens'))
 if (!FILE) {
-  console.error('usage: node scripts/repair-session.js <session.jsonl.zstd> [--raw sess-A.jsonl] [--dry-run] [--out file] [--compact]')
+  console.error('usage: node scripts/repair-session.js <session.jsonl.zstd> [--raw sess-A.jsonl] [--dry-run] [--out file] [--compact] [--max-tokens N]')
   process.exit(2)
 }
 
 try {
-  const result = repairFile(FILE, { raw: RAW, dryRun: DRY, out: OUT, compact: COMPACT })
+  const result = repairFile(FILE, { raw: RAW, dryRun: DRY, out: OUT, compact: COMPACT, maxTokens: MAX_TOKENS })
   for (const line of result.report) console.log(line)
 } catch (error) {
   console.error('FAILED:', error instanceof Error ? error.message : String(error))
