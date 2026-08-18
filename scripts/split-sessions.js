@@ -15,17 +15,16 @@
  * chosen boundary time; all earlier events go to the previous file.
  *
  * Usage:
- *   node split-sessions.js <events.jsonl> <boundary-iso-time> \
+ *   node scripts/split-sessions.js <events.jsonl> <boundary-iso-time> \
  *     [--out-dir DIR] [--prefix NAME]
  *
  * Example:
- *   node split-sessions.js /tmp/session-events.jsonl 2026-08-16T07:05:06Z
+ *   node scripts/split-sessions.js /tmp/session-events.jsonl 2026-08-16T07:05:06Z
  *
  * Outputs: <out-dir>/<prefix>-A.jsonl, -B.jsonl, ... (sorted by boundary)
  */
-'use strict'
-const fs = require('fs')
-const path = require('path')
+import fs from 'node:fs'
+import path from 'node:path'
 
 const INPUT = process.argv[2]
 const BOUNDARY = process.argv[3]

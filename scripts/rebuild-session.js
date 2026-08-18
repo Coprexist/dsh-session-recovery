@@ -18,15 +18,14 @@
  *   - writes per-line zstd frames with checksum
  *
  * Usage:
- *   node rebuild-session.js --input events.jsonl --id <session-id> \
+ *   node scripts/rebuild-session.js --input events.jsonl --id <session-id> \
  *     --created-at <ms> --cwd <workspace-path> --out-dir <sessions-dir>
  *
  * Writes <out-dir>/<id>/session.jsonl.zstd
  */
-'use strict'
-const fs = require('fs')
-const path = require('path')
-const zlib = require('zlib')
+import fs from 'node:fs'
+import path from 'node:path'
+import zlib from 'node:zlib'
 
 function arg(name) {
   const i = process.argv.indexOf('--' + name)

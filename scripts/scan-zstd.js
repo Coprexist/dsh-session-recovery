@@ -11,16 +11,15 @@
  * and clusters events by disk offset proximity so you can tell sessions apart.
  *
  * Usage:
- *   node scan-zstd.js /dev/sdX1 > /tmp/session-events.jsonl 2>/tmp/scan.log
+ *   node scripts/scan-zstd.js /dev/sdX1 > /tmp/session-events.jsonl 2>/tmp/scan.log
  *
  * Output (stdout): one JSON event per line (already validated as a dsh event).
  * Output (stderr): progress + cluster summary.
  *
  * The device is opened read-only; nothing is ever written back to it.
  */
-'use strict'
-const fs = require('fs')
-const zlib = require('zlib')
+import fs from 'node:fs'
+import zlib from 'node:zlib'
 
 const DEV = process.argv[2]
 if (!DEV) { console.error('usage: node scan-zstd.js <block-device>'); process.exit(2) }

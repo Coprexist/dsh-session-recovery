@@ -10,7 +10,7 @@
  * corrupt pages, keeps readable rows) and written out as a fresh DB.
  *
  * Usage:
- *   node recover-memory.js /dev/sdX1 /tmp/recovered/ [--all]
+ *   node scripts/recover-memory.js /dev/sdX1 /tmp/recovered/ [--all]
  *
  *   --all   dump and .recover every SQLite candidate (default: stop at first
  *           database that has a `memories` table)
@@ -18,11 +18,10 @@
  * Requires: node:sqlite (Node 24+). Uses the sqlite3 CLI if available for
  * .recover; otherwise falls back to a JS row-by-row rescue via node:sqlite.
  */
-'use strict'
-const fs = require('fs')
-const path = require('path')
-const { execFileSync } = require('child_process')
-const { DatabaseSync } = require('node:sqlite')
+import fs from 'node:fs'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { DatabaseSync } from 'node:sqlite'
 
 const DEV = process.argv[2]
 const OUT = process.argv[3]
