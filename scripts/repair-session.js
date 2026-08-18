@@ -13,12 +13,17 @@
  *     metadata from non-surface events, rewrites per-line checksummed zstd
  *
  * Usage:
- *   node scripts/repair-session.js <session.jsonl.zstd> [--raw sess-A.jsonl] [--dry-run] [--out file]
+ *   node scripts/repair-session.js <session.jsonl.zstd> [--raw sess-A.jsonl] [--dry-run] [--out file] [--compact]
  *
  *   --raw        rebuild faithfully from the recovered raw JSONL (preserves
  *                compaction REPLACE semantics); otherwise repairs the current
  *                file in place.
  *   --dry-run    analyze and report only; write nothing.
+ *   --compact    restore compaction semantics: drop messages that a compaction
+ *                replace already shadowed (their seqs are recorded in the
+ *                surviving event's sourceEventSeqs), shrinking the transcript
+ *                back to the compacted view. Use when resume fails with
+ *                "maximum context length exceeded".
  *
  * Output: <file>.repaired (new file) + <file>.bak-<ts> (backup of input).
  */
@@ -30,13 +35,14 @@ const FILE = args[0]
 const RAW = opt('raw')
 const DRY = args.includes('--dry-run')
 const OUT = opt('out')
+const COMPACT = args.includes('--compact')
 if (!FILE) {
-  console.error('usage: node scripts/repair-session.js <session.jsonl.zstd> [--raw sess-A.jsonl] [--dry-run] [--out file]')
+  console.error('usage: node scripts/repair-session.js <session.jsonl.zstd> [--raw sess-A.jsonl] [--dry-run] [--out file] [--compact]')
   process.exit(2)
 }
 
 try {
-  const result = repairFile(FILE, { raw: RAW, dryRun: DRY, out: OUT })
+  const result = repairFile(FILE, { raw: RAW, dryRun: DRY, out: OUT, compact: COMPACT })
   for (const line of result.report) console.log(line)
 } catch (error) {
   console.error('FAILED:', error instanceof Error ? error.message : String(error))
