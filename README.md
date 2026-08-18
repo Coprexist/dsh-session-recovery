@@ -24,7 +24,7 @@ English · [中文](README.zh.md)
 | 🧠 **Memory recovery** | Locate `memory.db` by its `SQLite format 3` header, dump the window, rescue rows via SQLite's official `.recover` (skips corrupt pages, keeps readable data). |
 | 💬 **Session recovery** | Scan disk for zstd frame magic `0xFD2FB528`, cluster frames by disk offset, split sessions at `turn` resets, rebuild official-format `session.jsonl.zstd`. |
 | 🔧 **Automatic repair** | Renumber `seq` contiguously, deep-fix `sourceEventSeqs`/`messageSeqs`, normalize `surfaceOp` — the rebuilt log passes DSH's validation. |
-| 🔁 **Resume repair** | Rebuilt sessions can fail at *resume* (`invalid persisted inbox splice`, `Messages with role 'tool' must be a response to tool_calls`) — `repair-session.js` replays DSH's inbox/surface/wire rules and fixes the file. |
+| 🔁 **Resume repair** | Rebuilt sessions can fail at *resume* (`invalid persisted inbox splice`, `Messages with role 'tool' must be a response to tool_calls`) — `repair-session.js` (or the `/session-repair` web command) replays DSH's inbox/surface/wire rules and fixes the file. |
 | 🛡️ **Safe by design** | Scripts only **read** the block device and write to a directory you choose; the original disk is never modified. |
 
 ## 🚀 Quick Start
@@ -65,11 +65,24 @@ cp ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd.repaire
 
 ## 📦 Install as a dsh plugin
 
-> **Note**: primarily a recovery toolkit (scripts + manual); a plugin wrapper is included so it can also be added via `dsh plugin add`.
+> **Note**: primarily a recovery toolkit (scripts + manual); it also installs as a dsh plugin that adds the **`/session-repair` command to the web UI**.
+
+From a directory containing this repo (local install, no publish needed):
 
 ```bash
-dsh plugin --profile web add dsh-session-recovery
+dsh plugin --profile web add file:/path/to/dsh-session-recovery
+systemctl restart dsh-web
 ```
+
+Then type in **any** session in the web UI:
+
+```
+/session-repair --dry-run              # analyze the current session (writes nothing)
+/session-repair <session-id-or-path>   # repair → writes .repaired + a backup
+/session-repair --apply <id>           # also replace the original file
+```
+
+By default only a new `.repaired` file plus a backup are written; `--apply` overwrites the original (refused for the live session hosting the command — run it from another session). Restart `dsh-web` after applying.
 
 Requires **Node 24+** (`node:sqlite`, `node:zlib`).
 
@@ -90,9 +103,13 @@ The session log is a **concatenated stream of zstd frames — one frame per JSON
 
 ```
 ├── RECOVERY.md            # Full recovery manual (Chinese, battle-tested)
+├── cordis.patch.yml       # dsh plugin patch (registers /session-repair)
 ├── docs/
 │   ├── awesome-entry.yml  # Ready-to-submit Awesome DSH Plugin list entry
 │   └── GITHUB-PUBLISH.md  # Publish & PR checklist
+├── lib/
+│   ├── index.js           # dsh plugin entry: /session-repair command
+│   └── repair.js          # Shared repair core (CLI + plugin)
 ├── scripts/
 │   ├── scan-zstd.js       # Disk scan: find & cluster zstd session frames
 │   ├── split-sessions.js  # Split mixed recovered events into per-session files
@@ -100,7 +117,7 @@ The session log is a **concatenated stream of zstd frames — one frame per JSON
 │   ├── repair-session.js  # Fix rebuilt sessions that fail to resume
 │   ├── make-test-fixture.js # Generate damaged samples to test repair offline
 │   └── recover-memory.js  # Locate & rescue memory.db (SQLite .recover)
-└── package.json           # dsh plugin manifest (dsh.bundle)
+└── package.json           # dsh plugin manifest (dsh.bundle + main entry)
 ```
 
 ## 🔖 Topics

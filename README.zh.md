@@ -24,7 +24,7 @@
 | 🧠 **记忆库恢复** | 以 `SQLite format 3` 文件头定位 `memory.db`，dump 后用 SQLite 官方 `.recover` 抢救（跳过损坏页、保留可读记录）。 |
 | 💬 **会话恢复** | 扫描 zstd 帧魔数 `0xFD2FB528`，按磁盘偏移聚类，在 `turn` 重置处拆分会话，重建官方格式 `session.jsonl.zstd`。 |
 | 🔧 **自动修复** | `seq` 重编号连续、深度修复 `sourceEventSeqs`/`messageSeqs`、归一化 `surfaceOp`——重建日志通过 DSH 校验。 |
-| 🔁 **续接修复** | 重建文件在*续接*时可能报错（`invalid persisted inbox splice`、`Messages with role 'tool' must be a response to tool_calls`）——`repair-session.js` 逐条重放 DSH 的 inbox/surface/wire 规则并修复。 |
+| 🔁 **续接修复** | 重建文件在*续接*时可能报错（`invalid persisted inbox splice`、`Messages with role 'tool' must be a response to tool_calls`）——`repair-session.js`（或 web 界面的 `/session-repair` 命令）逐条重放 DSH 的 inbox/surface/wire 规则并修复。 |
 | 🛡️ **安全设计** | 脚本只**读**块设备、写入你指定目录，绝不修改原始磁盘。 |
 
 ## 🚀 快速开始
@@ -64,11 +64,24 @@ cp ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd.repaire
 
 ## 📦 作为 dsh 插件安装
 
-> **说明**：本仓库核心是恢复工具集（脚本 + 手册），同时提供插件包装，可通过 `dsh plugin add` 安装。
+> **说明**：本仓库核心是恢复工具集（脚本 + 手册），同时作为 dsh 插件安装后会向 **web 界面注册 `/session-repair` 命令**。
+
+在包含本仓库的目录（本地安装，无需发布）：
 
 ```bash
-dsh plugin --profile web add dsh-session-recovery
+dsh plugin --profile web add file:/path/to/dsh-session-recovery
+systemctl restart dsh-web
 ```
+
+然后在 web 界面的**任意会话**里输入：
+
+```
+/session-repair --dry-run              # 只分析当前会话（不写任何文件）
+/session-repair <会话id或路径>          # 修复 → 生成 .repaired + 备份
+/session-repair --apply <id>           # 同时覆盖原文件
+```
+
+默认只生成新的 `.repaired` 文件 + 备份；`--apply` 才覆盖原文件（对正在运行当前会话会拒绝，需从其他会话执行）。应用后重启 `dsh-web`。
 
 需要 **Node 24+**（`node:sqlite`、`node:zlib`）。
 
@@ -89,9 +102,13 @@ DeepSeek Harness 的数据存放在 `~/.dsh` 下：
 
 ```
 ├── RECOVERY.md            # 完整恢复手册（中文，实战验证）
+├── cordis.patch.yml       # dsh 插件 patch（注册 /session-repair）
 ├── docs/
 │   ├── awesome-entry.yml  # 已按格式写好的 Awesome DSH Plugin 列表条目
 │   └── GITHUB-PUBLISH.md  # 发布与 PR 操作清单
+├── lib/
+│   ├── index.js           # dsh 插件入口：/session-repair 命令
+│   └── repair.js          # 共享修复核心（CLI + 插件共用）
 ├── scripts/
 │   ├── scan-zstd.js       # 磁盘扫描：定位并聚类 zstd 会话帧
 │   ├── split-sessions.js  # 把混合恢复事件按会话拆分
@@ -99,7 +116,7 @@ DeepSeek Harness 的数据存放在 `~/.dsh` 下：
 │   ├── repair-session.js  # 修复重建后无法续接的会话
 │   ├── make-test-fixture.js # 生成带损伤的样本会话，离线测试修复
 │   └── recover-memory.js  # 定位并抢救 memory.db（SQLite .recover）
-└── package.json           # dsh 插件 manifest（dsh.bundle）
+└── package.json           # dsh 插件 manifest（dsh.bundle + main 入口）
 ```
 
 ## 🔖 Topics

@@ -216,6 +216,14 @@ systemctl restart dsh-web
 3. **重编号 + 重映射**：seq 重新连续，`sourceEventSeqs`/`messageSeqs` 与 replace 的 start/end 全部按新编号重映射；不满足 DSH 重写规则的 replace 降级为 `append`
 
 > 想离线验证脚本：`node scripts/make-test-fixture.js` 会生成两个带典型损伤的样本会话，跑完 repair 后再用 DSH 自身的 `foldSurface` 加载即知是否修好。
+>
+> **不想 SSH？** 把本仓库装成 dsh 插件后，在 web 界面任意会话里直接输入 `/session-repair`（用法与脚本一致，默认只生成 `.repaired` + 备份，`--apply` 才覆盖原文件）：
+>
+> ```bash
+> dsh plugin --profile web add file:/path/to/dsh-session-recovery
+> systemctl restart dsh-web
+> # 然后在前端输入：/session-repair <会话id> --dry-run  或  /session-repair <会话id> --apply
+> ```
 
 ---
 
