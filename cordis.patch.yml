@@ -1,0 +1,7 @@
+# dsh-session-recovery bundle patch — registers the /session-repair command
+# in the web profile, so the repair toolkit is usable from the dsh frontend.
+# Installed via:
+#   dsh plugin --profile web add file:/path/to/dsh-session-recovery
+- insert:
+    - id: session-repair
+      name: dsh-session-recovery
