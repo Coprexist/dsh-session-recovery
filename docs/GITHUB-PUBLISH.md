@@ -61,23 +61,34 @@ dsh-plugin, dsh, deepseek-harness, session-recovery, data-recovery, zstd, sqlite
 
 未达标时，等几天 + 继续提交改进（如新增脚本、修文档、示例），凑够 commit 再提。
 
-### 3.2 操作步骤
+### 3.2 操作步骤（fork + 生成 + PR）
 
-1. Fork [awesome-dsh-plugin/awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
-2. 在 fork 中新建文件 `data/plugins/Coprexist__dsh-session-recovery.yml`，内容参考本仓库 `docs/awesome-entry.yml`：
+1. 打开 [awesome-dsh-plugin/awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) → **Fork**
+2. 克隆你的 fork（Windows 或 NAS 均可，需要 git + Node 24）：
 
-   ```yaml
-   url: https://github.com/Coprexist/dsh-session-recovery
-   name: Coprexist/dsh-session-recovery
-   category: sessions
-   description:
-     en: Recover deleted or corrupted dsh session logs (session.jsonl.zstd) and memory (memory.db) straight from the raw disk, with a battle-tested manual and rebuild scripts.
-     zh: 从原始磁盘直接恢复被删除或损坏的 dsh 会话记录（session.jsonl.zstd）与记忆库（memory.db），附实战验证手册与重建脚本。
+   ```bash
+   git clone https://github.com/<你的用户名>/awesome-dsh-plugin.git
+   cd awesome-dsh-plugin
    ```
 
-3. 在 fork 仓库根目录运行 `node scripts/generate-readme.mjs` 刷新 README（该列表是生成式维护，见其 CONTRIBUTING）
-4. 提交改动，向 `awesome-dsh-plugin/awesome-dsh-plugin` 主仓库发起 PR
-5. 等待维护者审核（关注 PR 评论，可能要求调整描述/分类）
+3. 新建文件 `data/plugins/Coprexist__dsh-session-recovery.yml`，内容用本仓库 [`docs/awesome-entry.yml`](../docs/awesome-entry.yml)（注意 `category: session` 是**单数**，官方合法值见 awesome 仓库的 contributing.md）
+
+4. 重新生成两个 README（该列表是**生成式维护**，README 勿手改）：
+
+   ```bash
+   npm ci
+   node scripts/generate-readme.mjs
+   ```
+
+5. 提交并推送：
+
+   ```bash
+   git add data/plugins/Coprexist__dsh-session-recovery.yml README.md README.zh.md
+   git commit -m "Add Coprexist/dsh-session-recovery"
+   git push
+   ```
+
+6. 回 GitHub 网页：你的 fork 页 → **Contribute → Open pull request**，base 选 `awesome-dsh-plugin:main`，等维护者审核（可能要求微调描述/分类，正常现象）。
 
 ---
 
@@ -88,6 +99,9 @@ dsh-plugin, dsh, deepseek-harness, session-recovery, data-recovery, zstd, sqlite
 | `scripts/scan-zstd.js` | 全盘扫描 zstd 会话帧（只读块设备），输出事件 JSONL |
 | `scripts/split-sessions.js` | 按 turn 重置 / 时间边界把混合事件拆成多个会话 |
 | `scripts/rebuild-session.js` | 重建官方格式 `session.jsonl.zstd`（重编号 + 修引用 + surfaceOp + 逐行 checksum zstd） |
+| `scripts/repair-session.js` | 修复重建后无法续接的会话（inbox splice / tool 配对） |
+| `scripts/make-test-fixture.js` | 生成带损伤的样本会话，离线测试修复逻辑 |
 | `scripts/recover-memory.js` | 定位 + 抢救 `memory.db`（SQLite `.recover`） |
+| `lib/index.js`（插件） | 装为 dsh 插件后注册 `/session-repair` 命令，web 界面直接用 |
 
 详细恢复流程见 [RECOVERY.md](../RECOVERY.md)。
