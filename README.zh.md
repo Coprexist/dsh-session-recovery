@@ -24,6 +24,7 @@
 | 🧠 **记忆库恢复** | 以 `SQLite format 3` 文件头定位 `memory.db`，dump 后用 SQLite 官方 `.recover` 抢救（跳过损坏页、保留可读记录）。 |
 | 💬 **会话恢复** | 扫描 zstd 帧魔数 `0xFD2FB528`，按磁盘偏移聚类，在 `turn` 重置处拆分会话，重建官方格式 `session.jsonl.zstd`。 |
 | 🔧 **自动修复** | `seq` 重编号连续、深度修复 `sourceEventSeqs`/`messageSeqs`、归一化 `surfaceOp`——重建日志通过 DSH 校验。 |
+| 🔁 **续接修复** | 重建文件在*续接*时可能报错（`invalid persisted inbox splice`、`Messages with role 'tool' must be a response to tool_calls`）——`repair-session.js` 逐条重放 DSH 的 inbox/surface/wire 规则并修复。 |
 | 🛡️ **安全设计** | 脚本只**读**块设备、写入你指定目录，绝不修改原始磁盘。 |
 
 ## 🚀 快速开始
@@ -48,6 +49,15 @@ node scripts/rebuild-session.js \
   --created-at 1786705157736 \
   --cwd /path/to/workspace \
   --out-dir ~/.dsh/sessions/--workspace-encoded--/
+
+# 6. 续接前校验/修复（修复 inbox splice 错位、重复/孤儿 tool 结果、悬空 tool 调用）
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd --dry-run
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd
+#   → 生成 session.jsonl.zstd.repaired（+ .bak-<时间戳>），确认后覆盖：
+cp ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd.repaired \
+   ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd
 ```
 
 📖 **完整分步手册**（中文，含 DSH 校验规则与所有可能遇到的报错）：**[RECOVERY.md](RECOVERY.md)**
@@ -86,6 +96,8 @@ DeepSeek Harness 的数据存放在 `~/.dsh` 下：
 │   ├── scan-zstd.js       # 磁盘扫描：定位并聚类 zstd 会话帧
 │   ├── split-sessions.js  # 把混合恢复事件按会话拆分
 │   ├── rebuild-session.js # 重建官方格式 session.jsonl.zstd
+│   ├── repair-session.js  # 修复重建后无法续接的会话
+│   ├── make-test-fixture.js # 生成带损伤的样本会话，离线测试修复
 │   └── recover-memory.js  # 定位并抢救 memory.db（SQLite .recover）
 └── package.json           # dsh 插件 manifest（dsh.bundle）
 ```

@@ -24,6 +24,7 @@ English · [中文](README.zh.md)
 | 🧠 **Memory recovery** | Locate `memory.db` by its `SQLite format 3` header, dump the window, rescue rows via SQLite's official `.recover` (skips corrupt pages, keeps readable data). |
 | 💬 **Session recovery** | Scan disk for zstd frame magic `0xFD2FB528`, cluster frames by disk offset, split sessions at `turn` resets, rebuild official-format `session.jsonl.zstd`. |
 | 🔧 **Automatic repair** | Renumber `seq` contiguously, deep-fix `sourceEventSeqs`/`messageSeqs`, normalize `surfaceOp` — the rebuilt log passes DSH's validation. |
+| 🔁 **Resume repair** | Rebuilt sessions can fail at *resume* (`invalid persisted inbox splice`, `Messages with role 'tool' must be a response to tool_calls`) — `repair-session.js` replays DSH's inbox/surface/wire rules and fixes the file. |
 | 🛡️ **Safe by design** | Scripts only **read** the block device and write to a directory you choose; the original disk is never modified. |
 
 ## 🚀 Quick Start
@@ -48,6 +49,16 @@ node scripts/rebuild-session.js \
   --created-at 1786705157736 \
   --cwd /path/to/workspace \
   --out-dir ~/.dsh/sessions/--workspace-encoded--/
+
+# 6. Before resuming: verify/repair the rebuilt session (fixes inbox splice
+#    skew, duplicate/orphaned tool results, dangling tool calls)
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd --dry-run
+node scripts/repair-session.js \
+  ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd
+#   → writes session.jsonl.zstd.repaired (+ .bak-<ts>); review, then replace:
+cp ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd.repaired \
+   ~/.dsh/sessions/--workspace-encoded--/<session-id>/session.jsonl.zstd
 ```
 
 📖 **Full step-by-step manual** (Chinese, with every DSH validation rule and error you may hit): **[RECOVERY.md](RECOVERY.md)**
@@ -86,6 +97,8 @@ The session log is a **concatenated stream of zstd frames — one frame per JSON
 │   ├── scan-zstd.js       # Disk scan: find & cluster zstd session frames
 │   ├── split-sessions.js  # Split mixed recovered events into per-session files
 │   ├── rebuild-session.js # Rebuild official-format session.jsonl.zstd
+│   ├── repair-session.js  # Fix rebuilt sessions that fail to resume
+│   ├── make-test-fixture.js # Generate damaged samples to test repair offline
 │   └── recover-memory.js  # Locate & rescue memory.db (SQLite .recover)
 └── package.json           # dsh plugin manifest (dsh.bundle)
 ```
