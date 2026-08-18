@@ -1,19 +1,30 @@
+<div align="center">
+
 # dsh-session-recovery
 
-![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-dsh-4B32C3) ![Node](https://img.shields.io/badge/Node-24%2B-339933) ![License](https://img.shields.io/badge/License-MIT-blue)
+**从原始磁盘恢复被删除/损坏的 DeepSeek Harness 会话与记忆库**
 
-[English](README.md) | 中文
+[![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-dsh-4B32C3)](https://github.com/deepseek-ai/deepseek-harness)
+[![Node](https://img.shields.io/badge/Node-24%2B-339933)](https://nodejs.org)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
-> 从原始磁盘直接恢复被删除或损坏的 DeepSeek Harness（dsh）会话记录（`session.jsonl.zstd`）与记忆库（`memory.db`）——实战验证过的恢复手册 + 可复用脚本。
+[English](README.md) · 中文
 
-在 `rm -rf ~/.dsh` 误删或文件损坏后，通过扫描原始块设备，找回磁盘上幸存的数据，重建 dsh 的会话日志与记忆库。
+</div>
+
+---
+
+> 🛟 在 `rm -rf ~/.dsh` 误删或文件损坏后，dsh 的会话记录（`session.jsonl.zstd`）与记忆库（`memory.db`）通常仍可从**原始块设备**中找回——本仓库是实战验证过的恢复手册与配套脚本。
 
 ## ✨ 功能特性
 
-- **记忆库恢复** — 用 `SQLite format 3` 文件头特征定位 `memory.db`，dump 后以 SQLite 官方 `.recover` 模式抢救数据（跳过损坏页、保留可读记录）。
-- **会话恢复** — 扫描磁盘上的 zstd 帧魔数（`0xFD2FB528`），按磁盘偏移聚类，在 `turn` 重置处拆分多个会话，重建官方格式的 `session.jsonl.zstd` 文件。
-- **自动修复** — 重编号 `seq` 为连续、深度修复 `sourceEventSeqs`/`messageSeqs` 引用、归一化 `surfaceOp`，使重建日志通过 DSH 的校验。
-- **安全** — 脚本只读块设备、写入你指定的目录，绝不修改原始磁盘。
+| | |
+|---|---|
+| 🧠 **记忆库恢复** | 以 `SQLite format 3` 文件头定位 `memory.db`，dump 后用 SQLite 官方 `.recover` 抢救（跳过损坏页、保留可读记录）。 |
+| 💬 **会话恢复** | 扫描 zstd 帧魔数 `0xFD2FB528`，按磁盘偏移聚类，在 `turn` 重置处拆分会话，重建官方格式 `session.jsonl.zstd`。 |
+| 🔧 **自动修复** | `seq` 重编号连续、深度修复 `sourceEventSeqs`/`messageSeqs`、归一化 `surfaceOp`——重建日志通过 DSH 校验。 |
+| 🛡️ **安全设计** | 脚本只**读**块设备、写入你指定目录，绝不修改原始磁盘。 |
 
 ## 🚀 快速开始
 
@@ -27,7 +38,10 @@ node scripts/recover-memory.js /dev/<设备> /tmp/recovered/
 # 3. 扫描磁盘上的会话帧
 node scripts/scan-zstd.js /dev/<设备> > /tmp/session-events.jsonl
 
-# 4. 重建会话文件（官方格式）
+# 4. 把混合事件按会话拆分
+node scripts/split-sessions.js /tmp/session-events.jsonl 2026-08-16T07:05:06Z
+
+# 5. 重建会话文件（官方格式）
 node scripts/rebuild-session.js \
   --input /tmp/sess-A.jsonl \
   --id session-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
@@ -36,27 +50,30 @@ node scripts/rebuild-session.js \
   --out-dir ~/.dsh/sessions/--workspace-encoded--/
 ```
 
-完整的分步手册（含 DSH 校验规则与所有可能遇到的报错）见 [RECOVERY.md](RECOVERY.md)。
+📖 **完整分步手册**（中文，含 DSH 校验规则与所有可能遇到的报错）：**[RECOVERY.md](RECOVERY.md)**
 
 ## 📦 作为 dsh 插件安装
 
-> **说明**：本仓库核心是恢复工具集（脚本 + 手册），同时提供插件包装，可通过 `dsh plugin add` 安装，在 harness 中暴露恢复/扫描工具。
+> **说明**：本仓库核心是恢复工具集（脚本 + 手册），同时提供插件包装，可通过 `dsh plugin add` 安装。
 
 ```bash
 dsh plugin --profile web add dsh-session-recovery
 ```
 
-需要 Node 24+（使用 `node:sqlite`、`node:zlib`）。
+需要 **Node 24+**（`node:sqlite`、`node:zlib`）。
 
 ## 📖 背景知识
 
 DeepSeek Harness 的数据存放在 `~/.dsh` 下：
 
-- 会话：`~/.dsh/sessions/<workspace-encoded>/<session-id>/session.jsonl.zstd`
-- 记忆库（dsh-mneme）：`~/.dsh/memory/memory.db`
-- 工作区注册表：`~/.dsh/storages/workspace.json`
+```
+~/.dsh/
+├── sessions/<workspace-encoded>/<session-id>/session.jsonl.zstd   # 会话记录
+├── memory/memory.db                                               # dsh-mneme 记忆库
+└── storages/workspace.json                                        # 工作区注册表
+```
 
-会话日志是 **zstd 帧的拼接流——每一行 JSONL 一个独立帧**（见 [dsh-session-persistence-jsonl](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/session/session-persistence-jsonl)）。这种逐行分帧的结构正是"部分恢复"可行的原因：即使部分帧被覆盖，周围的完整帧仍能独立解码。
+会话日志是 **zstd 帧的拼接流——每一行 JSONL 一个独立帧**（[源码](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/session/session-persistence-jsonl)）。这种逐行分帧的结构正是"部分恢复"可行的原因：即使部分帧被覆盖，周围的完整帧仍能独立解码。
 
 ## 🗂️ 仓库结构
 
@@ -67,7 +84,7 @@ DeepSeek Harness 的数据存放在 `~/.dsh` 下：
 │   └── GITHUB-PUBLISH.md  # 发布与 PR 操作清单
 ├── scripts/
 │   ├── scan-zstd.js       # 磁盘扫描：定位并聚类 zstd 会话帧
-│   ├── split-sessions.js  # 把混合恢复事件按会话拆分成多个文件
+│   ├── split-sessions.js  # 把混合恢复事件按会话拆分
 │   ├── rebuild-session.js # 重建官方格式 session.jsonl.zstd
 │   └── recover-memory.js  # 定位并抢救 memory.db（SQLite .recover）
 └── package.json           # dsh 插件 manifest（dsh.bundle）
@@ -75,8 +92,8 @@ DeepSeek Harness 的数据存放在 `~/.dsh` 下：
 
 ## 🔖 Topics
 
-`dsh` · `deepseek-harness` · `session-recovery` · `data-recovery` · `forensics` · `zstd` · `sqlite`
+`dsh-plugin` · `dsh` · `deepseek-harness` · `session-recovery` · `data-recovery` · `zstd` · `sqlite`
 
 ## 📄 License
 
-MIT
+[MIT](LICENSE)
